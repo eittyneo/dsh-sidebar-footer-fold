@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.5 (2026-11-16)
+
+修复「归档会话清理」在 Windows 上点了没反应的根本原因：
+
+- **中文路径静默失败**：宿主 PowerShell 读取 stdin 时按系统 OEM 代码页（936）解码，Node 写入的 UTF-8 路径匹配不到真实文件，`Test-Path` 返回 false 被当作 `missing` 成功，界面显示"已释放"而磁盘未变。现在脚本开头强制 `[Console]::InputEncoding` / `OutputEncoding` 为 UTF-8。
+- **多路径删除必然报错**：`ConvertFrom-Json` 把 JSON 数组作为单个对象输出，`@(...)` 不展开，`DeleteDirectory` 收到空格拼接的两个路径，报「不支持给定路径的格式」。每个会话正常都是「会话目录 + projcache 文件」两个路径，因此必然失败。现在显式逐项展开数组。
+- **回退写入加固**：实时 registry 取不到、退回直接写 `workspace.json` 时，保留原文档字段（`defaultWorkspaceId`、`pinnedSessionIds`、`pendingMutation` 等），并用临时文件 + rename 原子替换，避免丢字段或写出非法 JSON。
+- 新增 `test/recycle-smoke.mjs` 回归测试（英文/中文路径、多路径、缺失路径）。
+
 ## 0.3.4 (2026-11-08)
 
 首个公开发布版本。

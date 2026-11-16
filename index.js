@@ -11,7 +11,7 @@
  * Nothing else (attachments shared by other sessions, other sessions, storages) is deleted.
  * Files are moved to the Recycle Bin (recoverable), never permanently removed.
  */
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -52,6 +52,7 @@ function readWorkspaceDomain(home) {
   const json = readJson(file)
   return {
     file,
+    json,
     initialized: json?.global?.initialized === true,
     workspaceIds: json?.global?.workspaceIds ?? [],
     archivedSessionIds: Array.isArray(json?.global?.archivedSessionIds) ? json.global.archivedSessionIds : [],
@@ -59,18 +60,30 @@ function readWorkspaceDomain(home) {
   }
 }
 
-/** Persist the workspace domain JSON, preserving unknown fields where possible. */
+/**
+ * Persist the workspace domain JSON.
+ *
+ * Only the fields this plugin owns are replaced: the previous document is the
+ * base, so sibling state (defaultWorkspaceId, pinnedSessionIds,
+ * pendingMutation, future fields) and unrelated tables survive the rewrite.
+ * A temp file + rename keeps the medium from ever holding a half document.
+ */
 function writeWorkspaceDomain(domain) {
+  const previous = domain.json && typeof domain.json === 'object' ? domain.json : {}
+  const global = { ...(previous.global || {}) }
+  global.initialized = domain.initialized
+  global.workspaceIds = domain.workspaceIds
+  global.archivedSessionIds = domain.archivedSessionIds
+  const tables = { ...(previous.tables || {}), workspaces: domain.workspaces }
   const json = {
-    unit: { name: 'workspace', version: 2 },
-    global: {
-      initialized: domain.initialized,
-      workspaceIds: domain.workspaceIds,
-      archivedSessionIds: domain.archivedSessionIds
-    },
-    tables: { workspaces: domain.workspaces }
+    ...previous,
+    unit: previous.unit && typeof previous.unit === 'object' ? previous.unit : { name: 'workspace', version: 2 },
+    global,
+    tables
   }
-  writeFileSync(domain.file, `${JSON.stringify(json, null, 2)}\n`, 'utf8')
+  const temp = `${domain.file}.sff-${process.pid}.tmp`
+  writeFileSync(temp, `${JSON.stringify(json, null, 2)}\n`, 'utf8')
+  renameSync(temp, domain.file)
 }
 
 /** Read a session's title/cwd/createdAt from its projection cache row. */
@@ -256,10 +269,21 @@ function recyclePaths(paths) {
       return
     }
     const script = [
+      // stdin/stdout are redirected pipes: force UTF-8 in both directions, or
+      // PowerShell 5.1 decodes the JSON body with the OEM code page and every
+      // non-ASCII (e.g. Chinese) path silently misses its Test-Path target.
+      '[Console]::InputEncoding=[System.Text.UTF8Encoding]::new($false)',
+      '[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false)',
       "Add-Type -AssemblyName Microsoft.VisualBasic | Out-Null",
       "$ErrorActionPreference='Stop'",
       '$raw=[Console]::In.ReadToEnd()',
-      '$list=@($raw | ConvertFrom-Json)',
+      // ConvertFrom-Json emits a JSON array as ONE object, so @(...) keeps the
+      // whole array as a single entry: foreach would then hand DeleteDirectory
+      // an array (its members joined by spaces) and every multi-path delete
+      // failed with "不支持给定路径的格式".
+      '$parsed=$raw | ConvertFrom-Json',
+      '$list=@()',
+      'foreach($entry in $parsed){ $list += [string]$entry }',
       '$vb=[Microsoft.VisualBasic.FileIO.FileSystem]',
       '$opt=[Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs',
       '$rb=[Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin',

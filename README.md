@@ -21,6 +21,17 @@ DeepSeek Harness（DSH）侧栏增强小插件：折叠费用卡片、编辑侧�
 
    不碰其他会话、共享附件、账本或其他存储。删除后同步归档列表与工作区记账，侧栏会话列表即时刷新。
 
+## 0.3.5 修复了什么
+
+0.3.4 的「归档会话清理」在 Windows 上实际不会删掉任何文件，0.3.5 修掉了宿主侧的两个 bug：
+
+- **中文路径被静默当成不存在**：Node 用 UTF-8 把路径写进 PowerShell 标准输入，PowerShell 5.1 默认按系统 OEM 代码页（936）解码。会话目录只要带中文，`Test-Path` 就查不到真实文件，脚本返回 `missing` 被当作"已清理"，界面上显示成功、磁盘上什么都没少。现在脚本开头强制 stdin/stdout 使用 UTF-8。
+- **多路径删除必然报错**：`ConvertFrom-Json` 把 JSON 数组作为单个对象输出，`@(...)` 不展开，`DeleteDirectory` 收到空格拼接的两个路径，报「不支持给定路径的格式」。而每个会话正常都是「会话目录 + projcache 文件」两个路径。现在显式逐项展开数组。
+
+另外加固了「实时 registry 取不到时直接写 `workspace.json`」的回退路径：保留原文档字段（`defaultWorkspaceId`、`pinnedSessionIds` 等），并用临时文件 + rename 原子替换，避免把文件写成非法 JSON。
+
+回归测试见 [`test/recycle-smoke.mjs`](test/recycle-smoke.mjs)（会把临时目录真的移入回收站）。
+
 ## 安装
 
 要求：DSH **0.2.1-rc.2 ~ 0.3.0**（含 0.2.2-rc.1），并已安装 `dsh-cost-meter`。
@@ -33,11 +44,11 @@ dsh plugin --profile desktop add github:eittyneo/dsh-sidebar-footer-fold
 
 ### 方式二：从 Release 的 tgz 安装
 
-1. 在 [Releases](https://github.com/eittyneo/dsh-sidebar-footer-fold/releases) 下载 `dsh-sidebar-footer-fold-0.3.4.tgz`
+1. 在 [Releases](https://github.com/eittyneo/dsh-sidebar-footer-fold/releases) 下载 `dsh-sidebar-footer-fold-0.3.5.tgz`
 2. 在 DSH 插件管理里安装该 tgz，或：
 
 ```bash
-dsh plugin --profile desktop add file:<path-to>/dsh-sidebar-footer-fold-0.3.4.tgz
+dsh plugin --profile desktop add file:<path-to>/dsh-sidebar-footer-fold-0.3.5.tgz
 ```
 
 安装后**重启 DSH**（或硬刷新窗口 Ctrl+Shift+R）使客户端脚本生效。
@@ -57,7 +68,7 @@ dsh plugin --profile desktop add file:<path-to>/dsh-sidebar-footer-fold-0.3.4.tg
 - 折叠仅通过给 `body` 加 class 实现
 - 宿主半侧只有两个本地 HTTP 接口；删除操作只在用户点击时执行，并走 Windows 回收站
 
-0.3.4 已通过静态检查与运行时冒烟测试（宿主 `apply()`、路由、客户端模块加载/注册/dispose 均不抛异常）。
+0.3.5 已通过静态检查与运行时冒烟测试（宿主 `apply()`、路由、客户端模块加载/注册/dispose 均不抛异常），并新增回收站删除的回归测试（英文/中文路径、多路径、缺失路径四种场景）。
 
 ## 兼容性
 
