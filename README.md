@@ -1,5 +1,8 @@
 # dsh-sidebar-footer-fold
 
+[![npm version](https://img.shields.io/npm/v/dsh-sidebar-footer-fold.svg)](https://www.npmjs.com/package/dsh-sidebar-footer-fold)
+[![license](https://img.shields.io/npm/l/dsh-sidebar-footer-fold.svg)](LICENSE)
+
 DeepSeek Harness（DSH）侧栏增强小插件：折叠费用卡片、编辑侧栏入口、清理归档会话。
 
 > **⚠️ 重要声明：本插件基于 [`dsh-cost-meter`](https://www.npmjs.com/package/dsh-cost-meter)（费用计量插件）实现。**
@@ -42,7 +45,15 @@ DeepSeek Harness（DSH）侧栏增强小插件：折叠费用卡片、编辑侧�
 dsh plugin --profile desktop add github:eittyneo/dsh-sidebar-footer-fold
 ```
 
-### 方式二：从 Release 的 tgz 安装
+### 方式二：从 npm 安装
+
+```bash
+dsh plugin --profile desktop add dsh-sidebar-footer-fold
+```
+
+npm 包页面：<https://www.npmjs.com/package/dsh-sidebar-footer-fold>
+
+### 方式三：从 Release 的 tgz 安装
 
 1. 在 [Releases](https://github.com/eittyneo/dsh-sidebar-footer-fold/releases) 下载 `dsh-sidebar-footer-fold-0.3.5.tgz`
 2. 在 DSH 插件管理里安装该 tgz，或：
