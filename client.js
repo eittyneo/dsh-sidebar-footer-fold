@@ -1,7 +1,8 @@
 // dsh-sidebar-footer-fold — 浏览器客户端
-// 功能 1：账号菜单（与「设置」同级）里的「收起 / 展开费用面板」——隐藏 dsh-cost-meter 的侧栏卡片。
+// 功能 1：侧栏底部「费用面板 ▾/▸」——收起 / 展开 dsh-cost-meter 的侧栏费用卡片（设置页可总开关，默认开启）。
 // 功能 2：侧栏「更多」菜单里的「编辑侧栏…」——勾选显示/隐藏侧栏面板入口。
 // 功能 3：设置页「归档会话清理」——列出归档会话，按需移入 Windows 回收站（只删除会话自身文件）。
+// 功能 4：设置页「侧栏增强」——费用面板折叠的总开关（dsh-cost-meter 用图标布局时可关掉）。
 // 本地状态保存在 localStorage；不读写 DSH 配置，不影响计费与费用查询。
 window.__ModuleLoader__.load({
   id: 'dsh-sidebar-footer-fold',
@@ -13,6 +14,8 @@ window.__ModuleLoader__.load({
     const BODY_CLASS = 'dsh-sff-collapsed'
     const PANEL_HIDDEN_CLASS = 'dsh-sff-panel-hidden'
     const STORAGE_KEY = 'dsh-sidebar-footer-fold:collapsed'
+    const FEE_FOLD_KEY = 'dsh-sidebar-footer-fold:fee-fold-enabled'
+    const FEE_FOLD_EVENT = 'dsh-sidebar-footer-fold:fee-fold-change'
     const HIDDEN_KEY = 'dsh-sidebar-footer-fold:hidden-panels'
     const EXCLUDED_PANEL_ID = 'plugins'
 
@@ -163,6 +166,68 @@ window.__ModuleLoader__.load({
       .dsh-sff-dialog-btn:hover { filter: brightness(.97); }
       .dsh-sff-dialog-btn:disabled { opacity: .55; cursor: default; }
 
+      /* ─────────── 设置页「侧栏增强」 ─────────── */
+      .dsh-sff-settings {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-width: 780px;
+        color: var(--dsw-alias-label-primary, #1f2328);
+      }
+      .dsh-sff-settings-heading { margin: 0; font-size: 18px; font-weight: 600; line-height: 26px; }
+      .dsh-sff-settings-intro { margin: 0; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary, #8a8f99); }
+      .dsh-sff-settings-note { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary, #8a8f99); }
+      .dsh-sff-setting {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 12px 14px;
+        border: 1px solid var(--dsw-alias-border-l2, rgba(15, 23, 42, .10));
+        border-radius: 12px;
+      }
+      .dsh-sff-setting-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+      .dsh-sff-setting-title { display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 22px; font-weight: 500; }
+      .dsh-sff-setting-state {
+        flex: none;
+        padding: 0 6px;
+        border-radius: 999px;
+        font-size: 11px;
+        line-height: 16px;
+        font-weight: 400;
+        color: var(--dsw-alias-label-tertiary, #8a8f99);
+        background: var(--dsw-alias-bg-layer-2, rgba(15, 23, 42, .06));
+      }
+      .dsh-sff-setting-desc { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary, #8a8f99); }
+      .dsh-sff-switch {
+        flex: none;
+        width: 40px;
+        height: 22px;
+        margin-top: 2px;
+        padding: 2px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--dsw-alias-border-l3, rgba(15, 23, 42, .18));
+        background: color-mix(in oklab, var(--dsw-alias-label-tertiary, #8a8f99) 32%, transparent);
+        display: inline-flex;
+        align-items: center;
+        cursor: pointer;
+        transition: background-color .15s ease;
+      }
+      .dsh-sff-switch.is-on { background: var(--dsw-alias-brand-primary, #4f6ef7); }
+      .dsh-sff-switch:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4f6ef7); outline-offset: 2px; }
+      .dsh-sff-switch-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, .28);
+        transition: transform .15s ease;
+      }
+      .dsh-sff-switch.is-on .dsh-sff-switch-thumb { transform: translateX(18px); }
+      @media (prefers-reduced-motion: reduce) {
+        .dsh-sff-switch, .dsh-sff-switch-thumb { transition: none; }
+      }
+
       .dsh-sff-archive { display: flex; flex-direction: column; gap: 12px; max-width: 780px; color: var(--dsw-alias-label-primary, #1f2328); }
       .dsh-sff-archive-heading { margin: 0; font-size: 18px; font-weight: 600; line-height: 26px; }
       .dsh-sff-archive-intro { margin: 0; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary, #8a8f99); }
@@ -267,19 +332,67 @@ window.__ModuleLoader__.load({
       document.body.classList.toggle(BODY_CLASS, Boolean(value))
     }
 
+    function readFeeFoldEnabled() {
+      try {
+        return window.localStorage.getItem(FEE_FOLD_KEY) !== '0'
+      } catch {
+        return true
+      }
+    }
+
+    function writeFeeFoldEnabled(value) {
+      try {
+        window.localStorage.setItem(FEE_FOLD_KEY, value ? '1' : '0')
+      } catch {
+        // 隐私模式等：忽略
+      }
+    }
+
+    /** 当前是否应该隐藏费用卡片：功能开关打开且用户收起过。 */
+    function syncFeeFold() {
+      applyCollapsed(readFeeFoldEnabled() && readCollapsed())
+    }
+
+    function setFeeFoldEnabled(value) {
+      writeFeeFoldEnabled(value)
+      syncFeeFold()
+      try {
+        window.dispatchEvent(new Event(FEE_FOLD_EVENT))
+      } catch {
+        // 忽略
+      }
+    }
+
+    /** 设置页与侧栏底行共用的开关状态（同一窗口用自定义事件，跨窗口靠 storage）。 */
+    function useFeeFoldEnabled() {
+      const [enabled, setEnabled] = React.useState(readFeeFoldEnabled)
+      React.useEffect(() => {
+        const onChange = () => setEnabled(readFeeFoldEnabled())
+        window.addEventListener(FEE_FOLD_EVENT, onChange)
+        window.addEventListener('storage', onChange)
+        return () => {
+          window.removeEventListener(FEE_FOLD_EVENT, onChange)
+          window.removeEventListener('storage', onChange)
+        }
+      }, [])
+      return enabled
+    }
+
     function findCostStack() {
       if (typeof document === 'undefined') return null
-      return document.querySelector('[data-slot="sidebar.footer.action"] .cm-footer-stack')
+      // 只认插槽直接子节点，别把图标布局展开面板里的同名容器当成费用卡片。
+      return document.querySelector('[data-slot="sidebar.footer.action"] > .cm-footer-stack')
     }
 
     /** 0.1.2 风格的侧栏底行：费用面板 ▾ / ▸（收合状态本机记忆）。 */
     function ToggleRow(props) {
       const [collapsed, setCollapsed] = React.useState(readCollapsed)
       const [visible, setVisible] = React.useState(() => Boolean(findCostStack()))
+      const feeFoldEnabled = useFeeFoldEnabled()
 
       React.useEffect(() => {
-        applyCollapsed(collapsed)
-      }, [collapsed])
+        applyCollapsed(feeFoldEnabled && collapsed)
+      }, [collapsed, feeFoldEnabled])
 
       React.useEffect(() => {
         let localObserver = null
@@ -301,6 +414,7 @@ window.__ModuleLoader__.load({
       }, [])
 
       if (props && props.wide === false) return null
+      if (!feeFoldEnabled) return null
       if (!visible) return null
 
       const collapsedNow = Boolean(collapsed)
@@ -321,7 +435,7 @@ window.__ModuleLoader__.load({
               const next = !collapsedNow
               setCollapsed(next)
               writeCollapsed(next)
-              applyCollapsed(next)
+              applyCollapsed(feeFoldEnabled && next)
             }
           },
           label
@@ -329,9 +443,61 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /** 设置 → 侧栏增强：费用面板折叠总开关。 */
+    function SidebarSection() {
+      const enabled = useFeeFoldEnabled()
+      return h(
+        'div',
+        { className: 'dsh-sff-settings' },
+        h('h2', { className: 'dsh-sff-settings-heading' }, '侧栏增强'),
+        h(
+          'p',
+          { className: 'dsh-sff-settings-intro' },
+          '费用面板折叠会在侧栏底部加一行「费用面板 ▾ / ▸」，用来收起 dsh-cost-meter 的费用卡片。'
+        ),
+        h(
+          'div',
+          { className: 'dsh-sff-setting' },
+          h(
+            'div',
+            { className: 'dsh-sff-setting-main' },
+            h(
+              'div',
+              { className: 'dsh-sff-setting-title' },
+              '费用面板折叠',
+              h('span', { className: 'dsh-sff-setting-state' }, enabled ? '已开启' : '已关闭')
+            ),
+            h(
+              'p',
+              { className: 'dsh-sff-setting-desc' },
+              'dsh-cost-meter 用「图标布局」时本身只占一行图标，不需要折叠可以关掉。关闭后不再显示「费用面板」行，费用卡片保持展开；dsh-cost-meter 自己的显示设置不受影响。'
+            )
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              role: 'switch',
+              className: 'dsh-sff-switch' + (enabled ? ' is-on' : ''),
+              'aria-checked': String(enabled),
+              'aria-label': '费用面板折叠',
+              onClick: () => setFeeFoldEnabled(!enabled)
+            },
+            h('span', { className: 'dsh-sff-switch-thumb' })
+          )
+        ),
+        h(
+          'p',
+          { className: 'dsh-sff-settings-note' },
+          '开关立即生效，保存在本机浏览器；刷新或重启 DSH 后保持。'
+        )
+      )
+    }
+
     // ─────────────────────────── 编辑侧栏 ───────────────────────────
 
     let slotsRef = null
+    let feeFoldListener = null
     let panelObserver = null
     let applyScheduled = 0
     let dialogElement = null
@@ -748,7 +914,17 @@ window.__ModuleLoader__.load({
       inject: ['slots'],
       apply(ctx) {
         ensureStyles()
-        applyCollapsed(readCollapsed())
+        syncFeeFold()
+
+        if (!feeFoldListener && typeof window !== 'undefined') {
+          feeFoldListener = () => syncFeeFold()
+          try {
+            window.addEventListener(FEE_FOLD_EVENT, feeFoldListener)
+            window.addEventListener('storage', feeFoldListener)
+          } catch {
+            feeFoldListener = null
+          }
+        }
 
         const slots =
           (ctx && typeof ctx.get === 'function' && ctx.get('slots')) ||
@@ -759,7 +935,18 @@ window.__ModuleLoader__.load({
           } catch {
             // 忽略
           }
-          return () => applyCollapsed(false)
+          return () => {
+            if (feeFoldListener) {
+              try {
+                window.removeEventListener(FEE_FOLD_EVENT, feeFoldListener)
+                window.removeEventListener('storage', feeFoldListener)
+              } catch {
+                // 忽略
+              }
+              feeFoldListener = null
+            }
+            applyCollapsed(false)
+          }
         }
         slotsRef = slots
 
@@ -786,6 +973,19 @@ window.__ModuleLoader__.load({
                 order: 20
               },
               EditSidebarRow
+            )
+          )
+        )
+        disposers.push(
+          slots.inject('settings.section', () =>
+            slots.register(
+              {
+                name: 'settings.section',
+                id: 'sidebar-footer-fold-general',
+                order: 16,
+                label: () => '侧栏增强'
+              },
+              SidebarSection
             )
           )
         )
@@ -855,6 +1055,15 @@ window.__ModuleLoader__.load({
           labelToId.clear()
           closePanelDialog()
           for (const button of collectPanelButtons()) button.classList.remove(PANEL_HIDDEN_CLASS)
+          if (feeFoldListener) {
+            try {
+              window.removeEventListener(FEE_FOLD_EVENT, feeFoldListener)
+              window.removeEventListener('storage', feeFoldListener)
+            } catch {
+              // 忽略
+            }
+            feeFoldListener = null
+          }
           applyCollapsed(false)
         }
       }
